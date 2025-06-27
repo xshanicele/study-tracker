@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>80-Hour Monthly Study Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            font-weight: 300;
+        }
+        h1, h2, h3, h4 {
+            font-weight: 600;
+        }
+        /* Corrected to consistently remove number input spin buttons across browsers */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none; /* Removes spin buttons for Webkit browsers */
+        }
+        input[type="number"] {
+            -moz-appearance: none; /* Removes spin buttons for older Firefox */
+            appearance: none; /* Standard property for modern browsers to remove spin buttons */
+            margin: 0; /* Ensures no default margin from browser for number inputs */
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: #000;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .dotted-pane {
+            border: 2px dashed #cbd5e1; /* slate-300 */
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 2rem;
+            background-color: #f8fafc; /* slate-50 */
+            height: 500px; /* Increased height for graph */
+            max-height: 600px; /* Max height for larger screens */
+            position: relative; /* For Chart.js responsiveness */
+        }
+        
+        /* Animated Gradient Header Styles */
+        @keyframes gradient-animation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .animated-header {
+            background: linear-gradient(270deg, #FF00FF, #CC00CC, #FF00FF, #DA70D6);
+            background-size: 400% 400%;
+            animation: gradient-animation 15s ease infinite;
+        }
+
+        /* Basic styling for hours display without special effects */
+        .hours-display-box {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 0.25rem;
+            border: 1px solid #cbd5e1; /* Standard border */
+            color: #334155; /* Dark slate text */
+            background-color: #ffffff;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: all 0.2s ease-in-out;
+        }
+        .hours-display-box:hover {
+            border-color: #FF00FF; /* Fuchsia pink on hover */
+            box-shadow: 0 0 0 1px rgba(255,0,255,0.4);
+        }
+
+        /* Basic styling for readiness dropdown */
+        .readiness-dropdown {
+            width: 60px;
+            padding: 3px;
+            font-size: 0.75rem;
+            border-radius: 0.25rem;
+            text-align: center;
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23CC00CC' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.25rem center;
+            background-size: 0.75em;
+            border: 1px solid #cbd5e1;
+            color: #1e293b; /* Black text */
+            background-color: #ffffff;
+            transition: all 0.2s ease-in-out;
+        }
+        .readiness-dropdown:focus {
+            outline: none;
+            border-color: #FF00FF;
+            box-shadow: 0 0 0 1px #FF00FF;
+        }
+
+        .day-cell-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%; /* Ensure content takes full width for centering */
+        }
+
+        .separator-line {
+            width: 60%; /* Medium width line */
+            height: 1px;
+            background-color: #cbd5e1; /* slate-300 */
+            margin: 4px 0; /* Small vertical margin */
+        }
+        /* Styles for grayed and green backgrounds - added back */
+        .bg-gray-opaque {
+            background-color: rgba(203, 213, 225, 0.5); /* slate-300 at 50% opacity */
+        }
+        .bg-green-opaque {
+            background-color: rgba(34, 197, 94, 0.5); /* green-500 at 50% opacity */
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <header class="animated-header text-white shadow-md p-4 no-print">
+        <div class="container mx-auto flex items-center justify-between">
+            <h1 class="text-2xl font-bold">HIM/HI Monthly Study Tracker</h1>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <section class="bg-white p-6 rounded-xl shadow-md mb-8 no-print">
+            <h2 class="text-xl font-semibold text-fuchsia-dark mb-4">Set Your Monthly Goal</h2>
+            <div class="flex items-center space-x-4 mb-4">
+                <label for="monthlyGoal" class="text-slate-700">Target Hours per Month:</label>
+                <input type="number" id="monthlyGoal" value="80" min="1" class="w-24 p-2 border border-slate-300 rounded-md text-center focus:ring-fuchsia-pink focus:border-fuchsia-pink">
+            </div>
+            <p class="text-slate-600">This tracker helps you log and visualize your study hours each month towards your degree.</p>
+        </section>
+
+        <section class="bg-white p-6 rounded-xl shadow-md mb-8">
+            <div class="flex flex-col md:flex-row items-center justify-between mb-6 no-print">
+                <div class="flex space-x-2 mb-4 md:mb-0">
+                    <select id="monthSelect" class="p-2 border border-slate-300 rounded-md focus:ring-fuchsia-pink focus:border-fuchsia-pink"></select>
+                    <select id="yearSelect" class="p-2 border border-slate-300 rounded-md focus:ring-fuchsia-pink focus:border-fuchsia-pink"></select>
+                </div>
+                <div class="text-right">
+                    <p class="text-xl font-bold text-fuchsia-dark">Total Hours: <span id="totalHours">0</span></p>
+                    <div class="w-48 bg-slate-200 rounded-full h-2.5 mt-2 mx-auto md:mx-0">
+                        <div id="progressBar" class="bg-fuchsia-pink h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="calendarGrid" class="grid grid-cols-8 gap-1 text-center font-medium">
+                <div class="p-2 text-slate-500">Sun</div>
+                <div class="p-2 text-slate-500">Mon</div>
+                <div class="p-2 text-slate-500">Tue</div>
+                <div class="p-2 text-slate-500">Wed</div>
+                <div class="p-2 text-slate-500">Thu</div>
+                <div class="p-2 text-slate-500">Fri</div>
+                <div class="p-2 text-slate-500">Sat</div>
+                <div class="p-2 text-fuchsia-dark">Week Total</div>
+            </div>
+        </section>
+
+        <section class="bg-white p-6 rounded-xl shadow-md mb-8">
+            <h2 class="text-xl font-semibold text-fuchsia-dark mb-4">Things to Note</h2>
+            <textarea id="notesTextbox" class="w-full p-3 border border-slate-300 rounded-md focus:ring-fuchsia-pink focus:border-fuchsia-pink min-h-[100px]" placeholder="Add your study notes, reflections, or upcoming goals here..."></textarea>
+            <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 mt-4">
+                <button id="generateInsightsButton" class="px-4 py-2 bg-fuchsia-pink text-white rounded-md hover:bg-fuchsia-dark transition-colors duration-200">✨ Generate Study Insights</button>
+                <button id="suggestTopicsButton" class="px-4 py-2 bg-fuchsia-pink text-white rounded-md hover:bg-fuchsia-dark transition-colors duration-200">✨ Suggest Next Study Topics</button>
+            </div>
+            <div id="insightsOutput" class="mt-4 p-3 bg-fuchsia-50 rounded-lg text-slate-700 hidden">
+                <p id="insightsLoading" class="loading-indicator text-fuchsia-dark hidden">Generating insights...</p>
+                <div id="insightsContent"></div>
+            </div>
+            <div id="suggestionsOutput" class="mt-4 p-3 bg-fuchsia-50 rounded-lg text-slate-700 hidden">
+                <p id="suggestionsLoading" class="loading-indicator text-fuchsia-dark hidden">Generating suggestions...</p>
+                <div id="suggestionsContent"></div>
+            </div>
+        </section>
+
+        <section class="bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-xl font-semibold text-fuchsia-dark mb-4">Daily Topics Study Breakdown</h2>
+            <div class="dotted-pane">
+                <canvas id="topicsLineChart"></canvas>
+            </div>
+        </section>
+
+        <section class="bg-white p-6 rounded-xl shadow-md mt-8 no-print">
+            <h2 class="text-lg font-semibold text-fuchsia-dark mb-4">Usage Notes</h2>
+            <ul class="list-disc list-inside text-sm text-slate-600 space-y-2">
+                <li>Input your study hours by clicking on the "Hours Studied" value within a day cell. A modal will open to record total hours and hours per topic.</li>
+                <li>Changes are saved automatically in your browser's local storage.</li>
+                <li>The dropdown for each day allows you to rate your readiness to move on to the next topic on a scale of 1-10.</li>
+                <li>Single-click a day box (outside the hours/readiness inputs) to mark it as 'didn't study' (gray). Double-click to mark it as 'studied' (green). Click again to clear.</li>
+                <li>The progress bars, total hours, and graphs update as you enter data.</li>
+                <li>Confetti celebrates when a weekly total reaches 20 hours!</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="bg-slate-800 text-white p-4 text-center text-sm no-print">
+        <p>&copy; 2025 Study Tracker. All rights reserved.</p>
+    </footer>
+
+    <!-- Daily Details Modal -->
+    <div id="dailyDetailsModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 class="text-xl font-semibold text-fuchsia-dark mb-4">Log for <span id="modalDate"></span></h3>
+            
+            <div class="mb-4">
+                <label for="modalTotalHours" class="block text-slate-700 text-sm font-bold mb-2">Total Hours Studied:</label>
+                <input type="number" id="modalTotalHours" min="0" max="24" step="0.5" placeholder="0" class="shadow appearance-none border rounded w-full py-2 px-3 text-slate-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-fuchsia-pink focus:border-fuchsia-pink">
+            </div>
+
+            <h4 class="text-md font-semibold text-slate-700 mb-3">Hours per Topic:</h4>
+            <div id="topicHoursContainer" class="space-y-3 mb-4">
+                <!-- Topic input fields will be dynamically added here -->
+            </div>
+            <button id="addTopicButton" class="px-4 py-2 bg-fuchsia-pink text-white rounded-md hover:bg-fuchsia-dark transition-colors duration-200">Add Topic</button>
+            
+            <div class="flex justify-end mt-6">
+                <button id="saveDailyDetails" class="px-6 py-2 bg-fuchsia-dark text-white rounded-md hover:bg-fuchsia-pink transition-colors duration-200">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tailwind CSS Customization (Radiant Fuchsia)
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'fuchsia-pink': '#FF00FF',    /* Main Fuchsia */
+                        'fuchsia-dark': '#CC00CC',    /* Darker Fuchsia for accents/hover */
+                        'fuchsia-50': '#fdf2f8', /* A very light pink for background on insights */
+                        'slate-50': '#f8fafc',
+                        'slate-200': '#e2e8f0',
+                        'slate-300': '#cbd5e1',
+                        'slate-500': '#64748b',
+                        'slate-600': '#475569',
+                        'slate-700': '#334155',
+                        'slate-800': '#1e293b',
+                        'slate-900': '#0f172a',
+                        'white': '#ffffff',
+                        'green-500': '#22c55e',
+                        'red-500': '#ef4444',
+                        'red-600': '#dc2626',
+                        'pink-50': '#fdf2f8', /* A very light pink for background on week totals */
+                        'pink-200': '#fbcfe8', /* A light pink for border on week totals */
+                    },
+                },
+            },
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const monthSelect = document.getElementById('monthSelect');
+            const yearSelect = document.getElementById('yearSelect');
+            const calendarGrid = document.getElementById('calendarGrid');
+            const totalHoursSpan = document.getElementById('totalHours');
+            const progressBar = document.getElementById('progressBar');
+            const monthlyGoalInput = document.getElementById('monthlyGoal');
+            const notesTextbox = document.getElementById('notesTextbox');
+
+            const dailyDetailsModal = document.getElementById('dailyDetailsModal');
+            const modalCloseButton = dailyDetailsModal.querySelector('.close-button');
+            const modalDateSpan = document.getElementById('modalDate');
+            const modalTotalHoursInput = document.getElementById('modalTotalHours');
+            const topicHoursContainer = document.getElementById('topicHoursContainer');
+            const addTopicButton = document.getElementById('addTopicButton');
+            const saveDailyDetailsButton = document.getElementById('saveDailyDetails');
+
+            // LLM Integration elements
+            const generateInsightsButton = document.getElementById('generateInsightsButton');
+            const insightsOutputDiv = document.getElementById('insightsOutput');
+            const insightsLoading = document.getElementById('insightsLoading');
+            const insightsContent = document.getElementById('insightsContent');
+            
+            const suggestTopicsButton = document.getElementById('suggestTopicsButton');
+            const suggestionsOutputDiv = document.getElementById('suggestionsOutput');
+            const suggestionsLoading = document.getElementById('suggestionsLoading');
+            const suggestionsContent = document.getElementById('suggestionsContent');
+
+
+            let currentMonthData = {}; // Stores hours for the currently displayed month
+            let currentDayForModal = null;
+            let currentMonthForModal = null;
+            let currentYearForModal = null;
+            let topicsLineChart;
+
+            const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const SYLLABUS_TOPICS = [
+                "Medical Terminology", "Anatomy & Physiology (A&P)", "Pharmacology",
+                "Introduction to HIM/HI", "Health Law and Ethics", "Healthcare Delivery Systems",
+                "Pathophysiology", "Health Informatics (Fundamental)", "Health Data Management",
+                "Healthcare Statistics and Research Methods", "Database Management Systems (DBMS) in Healthcare",
+                "Medical Coding (ICD-10-CM/PCS)", "Medical Coding (CPT & HCPCS)", "Medical Billing and Reimbursement Methodologies",
+                "Health Information Systems and Technology", "Data Analytics in Healthcare", "Quality Improvement and Patient Safety",
+                "Professional Practice Experience / Capstone Project"
+            ];
+            // Vibrant colors for each topic line
+            const TOPIC_COLORS = [
+                '#FF00FF', '#8A2BE2', '#40E0D0', '#FFD700', '#DA70D6', '#FF4500', '#20B2AA', '#7B68EE',
+                '#FFA07A', '#EE82EE', '#ADFF2F', '#00BFFF', '#BA55D3', '#7FFFD4', '#CD5C5C', '#F08080',
+                '#4682B4', '#DDA0DD', '#32CD32', '#FF6347'
+            ];
+
+            function populateMonthYearSelectors() {
+                const now = new Date();
+                const currentMonth = now.getMonth();
+                const currentYear = now.getFullYear();
+
+                MONTHS.forEach((month, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = month;
+                    if (index === currentMonth) {
+                        option.selected = true;
+                    }
+                    monthSelect.appendChild(option);
+                });
+
+                for (let i = currentYear - 5; i <= currentYear + 5; i++) {
+                    const option = document.createElement('option');
+                    option.value = i;
+                    option.textContent = i;
+                    if (i === currentYear) {
+                        option.selected = true;
+                    }
+                    yearSelect.appendChild(option);
+                }
+            }
+
+            function getDaysInMonth(year, month) {
+                return new Date(year, month + 1, 0).getDate();
+            }
+
+            function getFirstDayOfMonth(year, month) {
+                return new Date(year, month, 1).getDay(); // 0 for Sunday, 1 for Monday, etc.
+            }
+
+            function getMonthKey(year, month) {
+                return `hours_topics_readiness_${year}-${month}`;
+            }
+
+            function loadHoursForMonth(year, month) {
+                const monthKey = getMonthKey(year, month);
+                const savedData = localStorage.getItem(monthKey);
+                currentMonthData = savedData ? JSON.parse(savedData) : {};
+                 // Ensure each day has a 'status' property if loaded from older local storage
+                for (const day in currentMonthData) {
+                    if (currentMonthData.hasOwnProperty(day)) {
+                        if (typeof currentMonthData[day].status === 'undefined') {
+                            currentMonthData[day].status = 'normal'; // Default to normal if missing
+                        }
+                    }
+                }
+            }
+
+            function saveHoursForMonth(year, month) {
+                const monthKey = getMonthKey(year, month);
+                localStorage.setItem(monthKey, JSON.stringify(currentMonthData));
+            }
+
+            function updateOverallProgress() {
+                const totalHours = Object.values(currentMonthData).reduce((sum, dayData) => sum + parseFloat(dayData.totalHours || 0), 0);
+                totalHoursSpan.textContent = totalHours.toFixed(1);
+
+                const monthlyGoal = parseFloat(monthlyGoalInput.value);
+                let percentage = 0;
+                if (monthlyGoal > 0) {
+                    percentage = (totalHours / monthlyGoal) * 100;
+                    if (percentage > 100) percentage = 100;
+                }
+                progressBar.style.width = `${percentage}%`;
+                progressBar.classList.toggle('bg-fuchsia-pink', percentage < 100);
+                progressBar.classList.toggle('bg-green-500', percentage === 100);
+            }
+
+            function renderCalendar() {
+                const selectedYear = parseInt(yearSelect.value);
+                const selectedMonth = parseInt(monthSelect.value);
+
+                loadHoursForMonth(selectedYear, selectedMonth);
+
+                const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
+                const firstDay = getFirstDayOfMonth(selectedYear, selectedMonth);
+
+                let daysHtml = '';
+                let currentWeekDayCounter = firstDay; // Tracks the day of the week (0-6) for current cell
+                let weekTotalHours = 0;
+
+                // Add empty leading days (placeholders before the 1st day of the month)
+                for (let i = 0; i < firstDay; i++) {
+                    daysHtml += `<div class="p-2"></div>`;
+                }
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                     // Ensure dayData exists with default properties for rendering
+                    if (!currentMonthData[day]) {
+                        currentMonthData[day] = { totalHours: 0, topicHours: {}, readiness: null, status: 'normal' };
+                    }
+                    const dayData = currentMonthData[day];
+                    const displayHours = parseFloat(dayData.totalHours || 0).toFixed(1);
+                    const readinessValue = dayData.readiness !== null ? dayData.readiness : '';
+
+                    let statusClass = '';
+                    if (dayData.status === 'grayed') {
+                        statusClass = 'bg-gray-opaque';
+                    } else if (dayData.status === 'green') {
+                        statusClass = 'bg-green-opaque';
+                    }
+
+                    const readinessOptions = Array.from({ length: 20 }, (_, i) => (i * 0.5 + 1).toFixed(1));
+                    let readinessSelectOptionsHtml = `<option value="">-</option>`;
+                    readinessOptions.forEach(optionValue => {
+                        readinessSelectOptionsHtml += `<option value="${optionValue}" ${readinessValue === parseFloat(optionValue) ? 'selected' : ''}>${optionValue}</option>`;
+                    });
+
+                    daysHtml += `
+                        <div class="bg-white p-2 rounded-md border border-slate-200 flex flex-col items-center justify-between cursor-pointer hover:border-fuchsia-pink transition-colors duration-150 ${statusClass}" data-day="${day}">
+                            <span class="text-sm font-semibold mb-1">${day}</span>
+                            <div class="day-content-wrapper">
+                                <span class="text-xs text-slate-700 mt-1">Hours Studied</span>
+                                <span class="hours-display-box">${displayHours}h</span>
+                                <div class="separator-line"></div>
+                                <span class="text-xs text-slate-700 mt-1">Readiness</span>
+                                <select class="readiness-dropdown" data-day="${day}">${readinessSelectOptionsHtml}</select>
+                            </div>
+                        </div>
+                    `;
+                    weekTotalHours += parseFloat(dayData.totalHours || 0);
+                    currentWeekDayCounter++;
+
+                    // Add week total column (Sunday is 0, so when currentWeekDayCounter % 7 is 0, it's the end of a week)
+                    if (currentWeekDayCounter % 7 === 0 || day === daysInMonth) {
+                        // Pad with empty divs if it's the last row and not full before adding week total
+                        if (day === daysInMonth && currentWeekDayCounter % 7 !== 0) {
+                            const remainingCellsInRow = 7 - (currentWeekDayCounter % 7);
+                            for (let i = 0; i < remainingCellsInRow; i++) {
+                                daysHtml += `<div class="p-2"></div>`;
+                            }
+                        }
+
+                        daysHtml += `
+                            <div class="bg-pink-50 p-2 rounded-md border border-pink-200 flex flex-col items-center justify-center font-bold text-sm">
+                                ${weekTotalHours.toFixed(1)}h
+                            </div>
+                        `;
+                        // Confetti check
+                        if (weekTotalHours >= 20 && !currentMonthData[`confetti_${selectedYear}-${selectedMonth}-${day}`]) {
+                            currentMonthData[`confetti_${selectedYear}-${selectedMonth}-${day}`] = true;
+                            saveHoursForMonth(selectedYear, selectedMonth);
+                            confetti({
+                                particleCount: 100,
+                                spread: 70,
+                                origin: { y: 0.6 }
+                            });
+                        }
+                        weekTotalHours = 0; // Reset for next week
+                    }
+                }
+
+                const headerHtml = `
+                    <div class="p-2 text-slate-500">Sun</div>
+                    <div class="p-2 text-slate-500">Mon</div>
+                    <div class="p-2 text-slate-500">Tue</div>
+                    <div class="p-2 text-slate-500">Wed</div>
+                    <div class="p-2 text-slate-500">Thu</div>
+                    <div class="p-2 text-slate-500">Fri</div>
+                    <div class="p-2 text-slate-500">Sat</div>
+                    <div class="p-2 text-fuchsia-dark">Week Total</div>
+                `;
+                calendarGrid.innerHTML = headerHtml + daysHtml;
+
+                attachCalendarEventListeners(); // Re-attach listeners after content is replaced
+                updateOverallProgress();
+                renderTopicsLineChart();
+            }
+
+            function attachCalendarEventListeners() {
+                const dayDivs = calendarGrid.querySelectorAll('[data-day]');
+                dayDivs.forEach(dayDiv => {
+                    const day = parseInt(dayDiv.dataset.day);
+                    const selectedYear = parseInt(yearSelect.value);
+                    const selectedMonth = parseInt(monthSelect.value);
+
+                    const readinessSelect = dayDiv.querySelector('.readiness-dropdown');
+                    if (readinessSelect) {
+                        readinessSelect.addEventListener('change', (event) => {
+                            event.stopPropagation();
+                            currentMonthData[day].readiness = event.target.value === '' ? null : parseFloat(event.target.value);
+                            saveHoursForMonth(selectedYear, selectedMonth);
+                        });
+                        readinessSelect.addEventListener('click', (event) => {
+                            event.stopPropagation();
+                        });
+                    }
+
+                    const hoursDisplayBox = dayDiv.querySelector('.hours-display-box');
+                    if (hoursDisplayBox) {
+                        hoursDisplayBox.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            openDailyDetailsModal(day, selectedMonth, selectedYear);
+                        });
+                    }
+
+                    let clickTimeout = null;
+                    dayDiv.addEventListener('click', function(e) {
+                        if (e.target.classList.contains('hours-display-box') || e.target.closest('.readiness-dropdown')) {
+                            return; // Do nothing if specific interactive elements are clicked
+                        }
+
+                        clearTimeout(clickTimeout);
+                        if (e.detail === 1) { // Single click
+                            clickTimeout = setTimeout(() => {
+                                const currentStatus = currentMonthData[day].status;
+                                if (currentStatus === 'grayed') {
+                                    currentMonthData[day].status = 'normal';
+                                } else if (currentStatus === 'green') {
+                                    currentMonthData[day].status = 'normal';
+                                } else {
+                                    currentMonthData[day].status = 'grayed';
+                                }
+                                saveHoursForMonth(selectedYear, selectedMonth);
+                                renderCalendar(); // Re-render to apply new status
+                                clickTimeout = null;
+                            }, 200); // Small delay to differentiate single from double click
+                        } else if (e.detail === 2) { // Double click
+                            clearTimeout(clickTimeout);
+                            currentMonthData[day].status = 'green';
+                            saveHoursForMonth(selectedYear, selectedMonth);
+                            renderCalendar(); // Re-render to apply new status
+                            clickTimeout = null;
+                        }
+                    });
+                });
+            }
+
+
+            function openDailyDetailsModal(day, month, year) {
+                currentDayForModal = day;
+                currentMonthForModal = month;
+                currentYearForModal = year;
+
+                modalDateSpan.textContent = `${MONTHS[month]} ${day}, ${year}`;
+                const dayData = currentMonthData[day] || { totalHours: 0, topicHours: {}, readiness: null, status: 'normal' };
+                modalTotalHoursInput.value = dayData.totalHours || '';
+
+                topicHoursContainer.innerHTML = ''; // Clear previous entries
+
+                Object.entries(dayData.topicHours || {}).forEach(([topic, hours]) => {
+                    addTopicInputRow(topic, hours);
+                });
+
+                if (Object.keys(dayData.topicHours || {}).length === 0 || Object.values(dayData.topicHours || {}).every(h => h === 0)) {
+                    addTopicInputRow(); // Add an empty row if no topics logged or all are zero
+                }
+
+                dailyDetailsModal.style.display = 'flex';
+            }
+
+            function addTopicInputRow(topic = '', hours = '') {
+                const div = document.createElement('div');
+                div.className = 'flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2';
+                div.innerHTML = `
+                    <select class="topic-select flex-grow p-2 border border-slate-300 rounded-md focus:ring-fuchsia-pink focus:border-fuchsia-pink">
+                        <option value="">Select Topic</option>
+                        ${SYLLABUS_TOPICS.map(t => `<option value="${t}" ${t === topic ? 'selected' : ''}>${t}</option>`).join('')}
+                    </select>
+                    <input type="number" min="0" max="24" step="0.5" placeholder="Hours" value="${hours}" class="topic-hours-input w-24 p-2 border border-slate-300 rounded-md text-center focus:ring-fuchsia-pink focus:border-fuchsia-pink">
+                    <button class="remove-topic-button px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200 text-sm">✖</button>
+                `;
+                div.querySelector('.remove-topic-button').addEventListener('click', () => {
+                    div.remove();
+                });
+                topicHoursContainer.appendChild(div);
+            }
+
+            function saveDailyDetails() {
+                const totalHours = parseFloat(modalTotalHoursInput.value) || 0;
+                const topicHours = {};
+                topicHoursContainer.querySelectorAll('.flex').forEach(row => {
+                    const topicSelect = row.querySelector('.topic-select');
+                    const hoursInput = row.querySelector('.topic-hours-input');
+                    const topic = topicSelect.value;
+                    const hours = parseFloat(hoursInput.value) || 0;
+                    if (topic && hours > 0) {
+                        topicHours[topic] = hours;
+                    }
+                });
+
+                currentMonthData[currentDayForModal] = {
+                    ...currentMonthData[currentDayForModal],
+                    totalHours: totalHours,
+                    topicHours: topicHours
+                };
+                saveHoursForMonth(currentYearForModal, currentMonthForModal);
+                dailyDetailsModal.style.display = 'none';
+                renderCalendar(); // Re-render calendar to update displays and graph
+            }
+
+            modalCloseButton.addEventListener('click', () => {
+                dailyDetailsModal.style.display = 'none';
+            });
+
+            window.addEventListener('click', (event) => {
+                if (event.target === dailyDetailsModal) {
+                    dailyDetailsModal.style.display = 'none';
+                }
+            });
+
+            addTopicButton.addEventListener('click', () => addTopicInputRow());
+            saveDailyDetailsButton.addEventListener('click', saveDailyDetails);
+
+            function renderTopicsLineChart() {
+                const labels = Array.from({ length: getDaysInMonth(yearSelect.value, monthSelect.value) }, (_, i) => i + 1);
+                const datasets = SYLLABUS_TOPICS.map((topic, index) => {
+                    const data = labels.map(day => {
+                        const dayData = currentMonthData[day];
+                        return dayData && dayData.topicHours && dayData.topicHours[topic] ? dayData.topicHours[topic] : 0;
+                    });
+                    return {
+                        label: topic,
+                        data: data,
+                        borderColor: TOPIC_COLORS[index % TOPIC_COLORS.length],
+                        backgroundColor: TOPIC_COLORS[index % TOPIC_COLORS.length] + '40', // light fill
+                        fill: false,
+                        tension: 0.1,
+                        pointRadius: 3,
+                        pointBackgroundColor: TOPIC_COLORS[index % TOPIC_COLORS.length],
+                        showLine: true, // Lines are back!
+                        hidden: true // Start hidden to prevent overwhelming lines
+                    };
+                });
+
+                if (topicsLineChart) {
+                    topicsLineChart.destroy();
+                }
+
+                const ctx = document.getElementById('topicsLineChart').getContext('2d');
+                topicsLineChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 20,
+                                    padding: 10,
+                                    usePointStyle: true,
+                                    font: {
+                                        size: 10
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += context.parsed.y.toFixed(1) + ' hours';
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Total Hours',
+                                    font: {
+                                        size: 14
+                                    }
+                                },
+                                min: 0,
+                                max: 20,
+                                ticks: {
+                                    stepSize: 2
+                                },
+                                grid: {
+                                    color: (context) => context.tick.value % 2 === 0 ? 'rgba(203, 213, 225, 0.4)' : 'rgba(203, 213, 225, 0.2)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Day',
+                                    font: {
+                                        size: 14
+                                    }
+                                },
+                                ticks: {
+                                    stepSize: 1
+                                },
+                                grid: {
+                                    color: (context) => context.tick.value % 5 === 0 ? 'rgba(203, 213, 225, 0.4)' : 'rgba(203, 213, 225, 0.2)'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            populateMonthYearSelectors();
+            renderCalendar(); // Initial render
+
+            monthSelect.addEventListener('change', renderCalendar);
+            yearSelect.addEventListener('change', renderCalendar);
+            monthlyGoalInput.addEventListener('input', updateOverallProgress);
+
+            // Load and save monthly goal from local storage
+            const savedGoal = localStorage.getItem('monthlyStudyGoal');
+            if (savedGoal) {
+                monthlyGoalInput.value = savedGoal;
+            } else {
+                localStorage.setItem('monthlyStudyGoal', monthlyGoalInput.value);
+            }
+            monthlyGoalInput.addEventListener('input', () => {
+                localStorage.setItem('monthlyStudyGoal', monthlyGoalInput.value);
+                updateOverallProgress();
+            });
+
+            // Load and save notes from local storage
+            const savedNotes = localStorage.getItem('studyNotes');
+            if (savedNotes) {
+                notesTextbox.value = savedNotes;
+            }
+            notesTextbox.addEventListener('input', () => {
+                localStorage.setItem('studyNotes', notesTextbox.value);
+            });
+
+            // LLM Integration for Study Insights
+            const API_KEY = ""; // Your Gemini API Key
+
+            generateInsightsButton.addEventListener('click', async () => {
+                const notesContent = notesTextbox.value.trim();
+                insightsOutputDiv.classList.remove('hidden');
+                suggestionsOutputDiv.classList.add('hidden'); // Hide other LLM output
+                insightsLoading.classList.remove('hidden');
+                insightsContent.innerHTML = '';
+
+                if (notesContent.length === 0) {
+                    insightsContent.innerHTML = 'Please add some notes before generating insights.';
+                    insightsLoading.classList.add('hidden');
+                    return;
+                }
+
+                try {
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: `Summarize the following study notes and identify any recurring themes, challenges, or notable achievements:\n\n${notesContent}` }] });
+                    const payload = { contents: chatHistory };
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+
+                    insightsLoading.classList.add('hidden');
+
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        insightsContent.innerHTML = result.candidates[0].content.parts[0].text.replace(/\n/g, '<br>');
+                    } else {
+                        insightsContent.innerHTML = 'Could not generate insights. Please try again.';
+                    }
+                } catch (error) {
+                    console.error('Error calling Gemini API for insights:', error);
+                    insightsLoading.classList.add('hidden');
+                    insightsContent.innerHTML = 'Failed to generate insights due to an error.';
+                }
+            });
+
+            // LLM Integration for Suggest Next Study Topics
+            suggestTopicsButton.addEventListener('click', async () => {
+                suggestionsOutputDiv.classList.remove('hidden');
+                insightsOutputDiv.classList.add('hidden'); // Hide other LLM output
+                suggestionsLoading.classList.remove('hidden');
+                suggestionsContent.innerHTML = '';
+
+                const selectedYear = parseInt(yearSelect.value);
+                const selectedMonth = parseInt(monthSelect.value);
+                loadHoursForMonth(selectedYear, selectedMonth); // Ensure latest data is loaded
+
+                let readinessData = [];
+                for (let day = 1; day <= getDaysInMonth(selectedYear, selectedMonth); day++) {
+                    const dayInfo = currentMonthData[day];
+                    if (dayInfo && dayInfo.readiness !== null) {
+                        readinessData.push(`Day ${day}: Readiness ${dayInfo.readiness}`);
+                    }
+                }
+
+                const syllabusTopicsList = SYLLABUS_TOPICS.join(', ');
+                const notesContent = notesTextbox.value.trim();
+
+                let prompt = `Based on the following study readiness scores (1-10, where lower means less ready) and my notes, suggest 2-3 topics from the HIM/HI syllabus I should focus on next. Explain why, referencing the data provided. Prioritize topics that seem to have lower readiness scores or where I mentioned challenges in my notes.\n\n`;
+                
+                if (readinessData.length > 0) {
+                    prompt += `Readiness Scores (current month):\n${readinessData.join('\n')}\n\n`;
+                } else {
+                    prompt += `No readiness scores logged for this month. Please log some readiness scores for more tailored suggestions.\n\n`;
+                }
+
+                if (notesContent.length > 0) {
+                    prompt += `My Study Notes:\n${notesContent}\n\n`;
+                } else {
+                    prompt += `No study notes logged for this month. Please add notes for more context.\n\n`;
+                }
+                
+                prompt += `HIM/HI Syllabus Topics: ${syllabusTopicsList}\n\n`;
+                prompt += `Please provide your suggestions in a clear, concise list format.`;
+
+
+                if (readinessData.length === 0 && notesContent.length === 0) {
+                    suggestionsContent.innerHTML = 'Please log some readiness scores or add notes to get tailored study topic suggestions.';
+                    suggestionsLoading.classList.add('hidden');
+                    return;
+                }
+
+                try {
+                    let chatHistory = [];
+                    chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                    const payload = { contents: chatHistory };
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+
+                    suggestionsLoading.classList.add('hidden');
+
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        suggestionsContent.innerHTML = result.candidates[0].content.parts[0].text.replace(/\n/g, '<br>');
+                    } else {
+                        suggestionsContent.innerHTML = 'Could not generate suggestions. Please try again.';
+                    }
+                } catch (error) {
+                    console.error('Error calling Gemini API for suggestions:', error);
+                    insightsLoading.classList.add('hidden');
+                    suggestionsContent.innerHTML = 'Failed to generate suggestions due to an error.';
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
